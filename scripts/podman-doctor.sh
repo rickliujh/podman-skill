@@ -22,29 +22,39 @@ ok "host: $host_label"
 # ---------------------------------------------------------------- machine (VM)
 if [ "$vm" -eq 1 ]; then
   hdr "podman machine"
-  if ! ml=$(podman machine list --format '{{.Name}}|{{.Running}}|{{.VMType}}|{{.CPUs}}|{{.Memory}}|{{.DiskSize}}|{{.Rootful}}' 2>&1); then
-    bad "podman machine list failed: $ml"; exit 1
+  # Only fields documented on ListReporter. Rootful is NOT one of them - it
+  # lives on `machine inspect`, and asking list for it breaks the whole call.
+  if ! ml=$(podman machine list --format '{{.Name}}|{{.Running}}|{{.VMType}}|{{.CPUs}}|{{.Memory}}|{{.DiskSize}}' 2>&1); then
+    warn "podman machine list failed: $(printf '%s' "$ml" | head -1)"
+    tip "continuing — 'podman info' below is the authority on rootless"
+    ml=""
   fi
   if [ -z "$ml" ]; then
-    bad "no machine exists — containers cannot run"
-    tip "podman machine init --now"
-    exit 1
+    warn "could not enumerate machines"
+  else
+    running=0
+    while IFS='|' read -r name isrun vmtype cpus mem disk; do
+      [ -z "$name" ] && continue
+      name=${name%\*}                      # list marks the default machine with *
+      # `machine inspect` is the authority on state and rootful; fall back to list
+      state=$(podman machine inspect "$name" --format '{{.State}}' 2>/dev/null)
+      [ -z "$state" ] && { [ "$isrun" = "true" ] && state=running || state=stopped; }
+      if [ "$state" = "running" ]; then
+        running=1
+        ok "$name ($vmtype) running — ${cpus} cpu, ${mem} mem, ${disk} disk"
+      else
+        warn "$name ($vmtype) $state — podman machine start $name"
+      fi
+      isroot=$(podman machine inspect "$name" --format '{{.Rootful}}' 2>/dev/null)
+      case "$isroot" in
+        true)  bad "$name is ROOTFUL — this environment requires rootless"
+               tip "podman machine set --rootful=false   (separate image store; re-pull after)" ;;
+        false) ok "$name is rootless" ;;
+        *)     warn "could not read rootful state for $name" ;;
+      esac
+    done <<<"$ml"
+    [ "$running" -eq 0 ] && { bad "no machine running"; tip "podman machine start"; exit 1; }
   fi
-  running=0
-  while IFS='|' read -r name isrun vmtype cpus mem disk isroot; do
-    [ -z "$name" ] && continue
-    if [ "$isrun" = "true" ]; then
-      running=1
-      ok "$name ($vmtype) running — ${cpus} cpu, ${mem} mem, ${disk} disk"
-    else
-      warn "$name ($vmtype) stopped — podman machine start $name"
-    fi
-    if [ "$isroot" = "true" ]; then
-      bad "$name is ROOTFUL — this environment requires rootless"
-      tip "podman machine set --rootful=false   (image store differs; re-pull after)"
-    fi
-  done <<<"$ml"
-  [ "$running" -eq 0 ] && { bad "no machine running"; tip "podman machine start"; exit 1; }
 
   hdr "vm file sharing"
   mounts=$(podman machine inspect --format '{{range .Mounts}}{{.Source}}|{{.Target}}{{"\n"}}{{end}}' 2>/dev/null)
@@ -63,7 +73,6 @@ if [ "$vm" -eq 1 ]; then
        tip "bind mounts from here resolve to an EMPTY dir inside the VM, with no error"
        tip "move the project under \$HOME, or recreate the machine with -v $cwd:$cwd" ;;
   esac
-fi
 
   hdr "proxy / tls"
   ca=$(podman machine inspect 2>/dev/null | grep -io '"[a-z]*native[a-z]*ca[a-z]*"[[:space:]]*:[[:space:]]*[a-z]*' | head -1)
@@ -71,8 +80,8 @@ fi
     *true)  ok "--import-native-ca enabled" ;;
     *false) bad "--import-native-ca is OFF — required behind the corporate proxy"
             tip "podman machine set --import-native-ca && podman machine stop && podman machine start" ;;
-    *)      warn "could not read native-CA setting from podman machine inspect"
-            tip "behind a TLS-intercepting proxy the machine must be created with --import-native-ca" ;;
+    *)      ok "native-CA setting not exposed by this podman version — cannot verify"
+            tip "behind a TLS-intercepting proxy the machine needs --import-native-ca" ;;
   esac
   if [ -n "${HTTPS_PROXY:-${https_proxy:-}}" ]; then
     ok "host proxy: ${HTTPS_PROXY:-$https_proxy}"
@@ -82,6 +91,7 @@ fi
   else
     warn "no HTTPS_PROXY in this shell; export it before 'podman machine init' so the VM inherits it"
   fi
+fi
 
 # ---------------------------------------------------------------------- engine
 hdr "engine"
