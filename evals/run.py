@@ -10,7 +10,7 @@ Nothing here is tied to a particular CLI or vendor. Three modes:
 Graders are plain regexes, so scoring is deterministic, free and reproducible:
 the same transcript always yields the same score, with no judge model involved.
 """
-import argparse, json, os, re, shlex, subprocess, sys
+import argparse, json, os, re, shlex, subprocess, sys, time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -191,20 +191,23 @@ def failures(res):
 
 
 # ----------------------------------------------------------------- invocation
-def invoke(cmd, prompt):
+def invoke(cmd, prompt, timeout):
     """Two calling conventions, because CLIs disagree about where a prompt goes.
 
     Default is stdin (claude -p, ollama run, llm). If the command contains the
     literal {prompt}, the shell-quoted prompt is substituted there instead, for
     CLIs whose prompt flag takes an argument (gemini -p {prompt}).
     """
+    kwargs = {}
     if "{prompt}" in cmd:
         cmd = cmd.replace("{prompt}", shlex.quote(prompt))
-        stdin = None
+        # DEVNULL, never None: with None the child inherits this terminal's
+        # stdin and an interactive CLI blocks on it forever.
+        kwargs["stdin"] = subprocess.DEVNULL
     else:
-        stdin = prompt
-    p = subprocess.run(cmd, shell=True, input=stdin, capture_output=True,
-                       text=True, timeout=600)
+        kwargs["input"] = prompt
+    p = subprocess.run(cmd, shell=True, capture_output=True, text=True,
+                       timeout=timeout, **kwargs)
     if p.returncode != 0 and not p.stdout.strip():
         raise RuntimeError(f"command failed ({p.returncode}): {p.stderr.strip()[:400]}")
     return p.stdout
@@ -229,6 +232,8 @@ def main():
     ap.add_argument("--tag", action="append", help="filter by tag (repeatable)")
     ap.add_argument("--arms", default="with,without",
                     help="comma list: with,without (default both = ablation)")
+    ap.add_argument("--timeout", type=int, default=120,
+                    help="per-call timeout in seconds (default: 120)")
     ap.add_argument("--threshold", type=float, default=1.0,
                     help="exit 1 if any 'with' case scores below this")
     ap.add_argument("--json", metavar="PATH", help="write full results as JSON")
@@ -256,7 +261,11 @@ def main():
         print(f"  <case>.<arm>.reply.txt   then:  {sys.argv[0]} grade {out}")
         return 0
 
-    results, missing = [], 0
+    if args.mode == "run":
+        n = len(cases) * len(arms)
+        print(f"running {n} call(s): {len(cases)} case(s) x {len(arms)} arm(s), "
+              f"timeout {args.timeout}s each")
+    results, missing, errors = [], 0, 0
     for c in cases:
         row = {"id": c["id"], "tags": c["tags"], "arms": {}}
         for arm in arms:
@@ -270,11 +279,19 @@ def main():
                 if not args.cmd:
                     print("error: --cmd or $EVAL_CMD required for 'run'", file=sys.stderr)
                     return 2
+                print(f"  {c['id']} [{arm}] ...", end="", flush=True)
+                t0 = time.time()
                 try:
-                    reply = invoke(args.cmd, build_prompt(c, arm))
-                except Exception as e:  # noqa: BLE001
-                    print(f"{C['r']}error{C['0']} {c['id']} [{arm}]: {e}", file=sys.stderr)
+                    reply = invoke(args.cmd, build_prompt(c, arm), args.timeout)
+                except subprocess.TimeoutExpired:
+                    print(f" {C['r']}timeout after {args.timeout}s{C['0']}")
+                    errors += 1
                     continue
+                except Exception as e:  # noqa: BLE001
+                    print(f" {C['r']}error{C['0']}: {e}")
+                    errors += 1
+                    continue
+                print(f" {time.time() - t0:.1f}s")
             score, hard_ok, res = grade(c, reply)
             row["arms"][arm] = {"score": round(score, 3), "hard_ok": hard_ok,
                                 "failures": failures(res), "reply_chars": len(reply)}
@@ -317,11 +334,15 @@ def main():
             print(f"{C['b']}skill delta:        {sum(withs)/len(withs) - sum(withouts)/len(withouts):+.3f}{C['0']}")
     if missing:
         print(f"\n{C['y']}{missing} reply file(s) missing{C['0']}")
+    if errors:
+        print(f"\n{C['r']}{errors} call(s) failed or timed out — results incomplete{C['0']}")
 
     if args.json:
         Path(args.json).write_text(json.dumps(results, indent=2))
         print(f"\nwrote {args.json}")
 
+    if errors or missing:
+        return 1
     return 1 if withs and worst < args.threshold else 0
 
 

@@ -38,6 +38,7 @@ The `with` arm's prompt is ~25 KB (it carries the whole skill). That is well
 inside `ARG_MAX` on Linux and macOS, but prefer stdin where a CLI supports it.
 
 ```bash
+python3 run.py run --timeout 300         # per-call cap (default 120s)
 python3 run.py run --case proxy          # one case
 python3 run.py run --tag policy          # by tag
 python3 run.py run --arms with           # skip the baseline arm
@@ -46,8 +47,12 @@ python3 run.py run --json out.json       # machine-readable
 python3 run.py list
 ```
 
-Exit status is 1 if any `with`-arm case scores below `--threshold`, so it drops
-into CI unchanged.
+Progress prints per call as it goes, so a slow model looks slow rather than hung.
+Each call is capped by `--timeout` (120s default) and the child's stdin is always
+closed — an interactive CLI cannot sit waiting on your terminal.
+
+Exit status is 1 if any `with`-arm case scores below `--threshold`, **or** if any
+call failed, timed out, or had no saved reply — an incomplete run never passes.
 
 ## Run it with no tooling at all
 
