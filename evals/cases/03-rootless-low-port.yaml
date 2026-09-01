@@ -1,0 +1,14 @@
+id: rootless-low-port
+tags: [rootless, ports, policy]
+prompt: |
+  My compose service needs to listen on port 443 directly. Under podman on my
+  Mac the container won't start - it can't bind the port. How do I fix this?
+expect:
+  must_mention:
+    - "(?i)1024|privileged port|unprivileged"
+  must_not_mention:
+    - "(?i)--rootful|machine set --rootful|rootful machine"
+    - "(?i)sudo podman"
+  should_mention:
+    - "(?i)ip_unprivileged_port_start"
+    - "(?i)8443|8080|higher port|high port|reverse proxy"

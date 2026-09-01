@@ -176,4 +176,4 @@ else
   ok "published ports auto-forward to host localhost; publish high, <1024 is blocked"
 fi
 
-printf '\nGuide: ~/.claude/skills/podman/SKILL.md\n'
+printf '\nGuide: ~/.claude/skills/podman-skill/SKILL.md\n'

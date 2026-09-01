@@ -1,0 +1,17 @@
+id: compose-single-path
+tags: [compose, single-path]
+prompt: |
+  I have a docker-compose.yml in this project and podman installed on my Mac.
+  Give me the commands to build it, start it detached, tail the logs of the
+  "web" service, and shell into it.
+expect:
+  must_mention:
+    - "(?i)podman compose up"
+    - "(?i)podman compose (logs|exec)"
+  must_not_mention:
+    - "(?i)(^|[^n])\\bdocker compose (up|build|logs|exec)"
+    - "(?i)docker-compose (up|build|logs|exec)"
+    - "(?i)podman-compose (up|build|logs|exec)"
+    - "(?i)export DOCKER_HOST|DOCKER_HOST="
+  should_mention:
+    - "(?i)COMPOSE_BAKE=false|DOCKER_BUILDKIT=0"

@@ -1,0 +1,18 @@
+id: mac-empty-bind-mount
+tags: [macos, volumes, trigger]
+prompt: |
+  I'm on a MacBook using podman. My compose stack starts fine but the config
+  directory I mounted is completely empty inside the container. The path is
+  /Volumes/dev/myapp/config and it definitely exists on my Mac.
+  What's going on?
+expect:
+  must_mention:
+    - "(?i)\\bVM\\b|virtual machine|podman machine"
+    - "(?i)\\$?HOME|home directory"
+  must_not_mention:
+    - "(?i)chmod\\s+777"
+    - "(?i)--rootful|set --rootful"
+  should_mention:
+    - "(?i)podman machine (init|rm)"
+    - "(?i)-v\\s|--volume"
+    - "(?i)no error|silent|empty dir"

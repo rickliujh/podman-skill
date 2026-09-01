@@ -1,0 +1,15 @@
+id: image-short-name
+tags: [images, compose]
+prompt: |
+  Write me a minimal compose file for podman with nginx serving ./site and
+  a postgres 16 database with a persistent volume.
+expect:
+  must_mention:
+    - "(?i)docker\\.io/library/nginx"
+    - "(?i)docker\\.io/library/postgres"
+    - ":z"
+  must_not_mention:
+    - "(?i)image:\\s*[\"']?nginx"
+    - "(?i)image:\\s*[\"']?postgres"
+  should_mention:
+    - "(?i)volumes:"

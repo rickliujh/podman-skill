@@ -1,0 +1,11 @@
+id: negative-unrelated
+tags: [negative, trigger]
+skill_should_fire: false
+prompt: |
+  Explain the difference between a Kubernetes Deployment and a StatefulSet,
+  and when I'd pick each one.
+expect:
+  must_not_mention:
+    - "(?i)podman machine"
+    - "(?i)import-native-ca"
+    - "(?i)podman compose"

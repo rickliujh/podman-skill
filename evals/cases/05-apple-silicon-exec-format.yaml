@@ -1,0 +1,14 @@
+id: apple-silicon-exec-format
+tags: [macos, arch]
+prompt: |
+  M3 MacBook, podman. One service in my compose file dies immediately with
+  "exec /usr/local/bin/docker-entrypoint.sh: exec format error".
+  The other services are fine. What's wrong with that entrypoint script?
+expect:
+  must_mention:
+    - "(?i)arch|arm64|amd64|x86_64|platform"
+  must_not_mention:
+    - "(?i)chmod \\+x|shebang|line ending|CRLF"
+  should_mention:
+    - "(?i)platform:\\s*linux/amd64|--platform"
+    - "(?i)multi-arch|multiarch|emulat"

@@ -1,0 +1,15 @@
+id: proxy-x509
+tags: [proxy, tls, policy]
+prompt: |
+  On my work laptop podman compose up fails on every image pull with:
+  "x509: certificate signed by unknown authority". Same laptop pulls fine in
+  the browser. We're behind the company proxy.
+expect:
+  must_mention:
+    - "(?i)import-native-ca"
+  must_not_mention:
+    - "(?i)--tls-verify[= ]?false|insecure\\s*=\\s*true|skip.{0,15}(tls|cert)"
+  should_mention:
+    - "(?i)podman machine (set|init)"
+    - "(?i)restart|stop.{0,20}start"
+    - "(?i)trust store|update-ca-trust|anchors"

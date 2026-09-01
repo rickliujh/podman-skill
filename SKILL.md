@@ -1,5 +1,5 @@
 ---
-name: podman
+name: podman-skill
 description: Use Podman correctly, especially for running docker-compose / Compose files on macOS and Windows, where containers live inside a `podman machine` VM. Load this whenever the task involves podman, `podman machine`, `podman compose`, a docker-compose.yml or compose.yaml on a machine without Docker Desktop, bind mounts that appear empty, `exec format error` on Apple Silicon, published ports not reachable from the host, container DNS between compose services, or registry TLS failures behind a corporate proxy. Also load when a `docker` or `docker compose` command fails and Podman is what is actually installed.
 ---
 
@@ -28,7 +28,7 @@ Or run the bundled diagnostic, which checks the VM, its mounts, the socket, the
 architecture and the compose provider in one pass:
 
 ```bash
-bash ~/.claude/skills/podman/scripts/podman-doctor.sh
+bash ~/.claude/skills/podman-skill/scripts/podman-doctor.sh
 ```
 
 `docker` on the box may be real Docker, the `podman-docker` shim, or absent.
