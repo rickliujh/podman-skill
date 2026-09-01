@@ -16,14 +16,26 @@ A case that scores the same in both arms is a case the skill isn't earning.
 
 ## Run it
 
-Any command that reads a prompt on stdin and writes a reply on stdout works:
+Any command that writes the reply to stdout works. CLIs disagree about where the
+prompt goes, so the runner supports both conventions:
+
+- **stdin** (the default) — the prompt is piped in.
+- **argument** — if `EVAL_CMD` contains the literal `{prompt}`, the shell-quoted
+  prompt is substituted there instead and nothing is piped.
 
 ```bash
-EVAL_CMD='claude -p'                     python3 run.py run
-EVAL_CMD='llm -m gpt-4o'                 python3 run.py run
-EVAL_CMD='ollama run llama3'             python3 run.py run
-EVAL_CMD='python3 my_wrapper.py'         python3 run.py run
+EVAL_CMD='claude -p'              python3 run.py run   # stdin
+EVAL_CMD='llm -m gpt-4o'          python3 run.py run   # stdin
+EVAL_CMD='ollama run llama3'      python3 run.py run   # stdin
+EVAL_CMD='gemini -p {prompt}'     python3 run.py run   # argument
+EVAL_CMD='python3 my_wrapper.py'  python3 run.py run   # stdin
 ```
+
+`gemini -p` on its own fails with `Not enough argument following p`, because its
+`-p` requires a value rather than reading stdin — use the `{prompt}` form.
+
+The `with` arm's prompt is ~25 KB (it carries the whole skill). That is well
+inside `ARG_MAX` on Linux and macOS, but prefer stdin where a CLI supports it.
 
 ```bash
 python3 run.py run --case proxy          # one case

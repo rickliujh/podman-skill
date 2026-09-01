@@ -10,7 +10,7 @@ Nothing here is tied to a particular CLI or vendor. Three modes:
 Graders are plain regexes, so scoring is deterministic, free and reproducible:
 the same transcript always yields the same score, with no judge model involved.
 """
-import argparse, json, os, re, subprocess, sys
+import argparse, json, os, re, shlex, subprocess, sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -192,7 +192,18 @@ def failures(res):
 
 # ----------------------------------------------------------------- invocation
 def invoke(cmd, prompt):
-    p = subprocess.run(cmd, shell=True, input=prompt, capture_output=True,
+    """Two calling conventions, because CLIs disagree about where a prompt goes.
+
+    Default is stdin (claude -p, ollama run, llm). If the command contains the
+    literal {prompt}, the shell-quoted prompt is substituted there instead, for
+    CLIs whose prompt flag takes an argument (gemini -p {prompt}).
+    """
+    if "{prompt}" in cmd:
+        cmd = cmd.replace("{prompt}", shlex.quote(prompt))
+        stdin = None
+    else:
+        stdin = prompt
+    p = subprocess.run(cmd, shell=True, input=stdin, capture_output=True,
                        text=True, timeout=600)
     if p.returncode != 0 and not p.stdout.strip():
         raise RuntimeError(f"command failed ({p.returncode}): {p.stderr.strip()[:400]}")
@@ -211,8 +222,9 @@ def main():
     ap.add_argument("mode", choices=["run", "emit", "grade", "list"])
     ap.add_argument("dir", nargs="?", help="prompt/reply dir for emit and grade")
     ap.add_argument("--cmd", default=os.environ.get("EVAL_CMD"),
-                    help="command receiving the prompt on stdin, reply on stdout "
-                         "(or set $EVAL_CMD)")
+                    help="command producing the reply on stdout; gets the prompt "
+                         "on stdin, or substituted at {prompt} if the command "
+                         "contains that literal (or set $EVAL_CMD)")
     ap.add_argument("--case", help="substring filter on case id")
     ap.add_argument("--tag", action="append", help="filter by tag (repeatable)")
     ap.add_argument("--arms", default="with,without",
